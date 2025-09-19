@@ -3,6 +3,42 @@
 
 
 ; 使用 Ctrl + Alt + m 快捷键：启动、激活或切换 Windows Terminal
+; 使用 Ctrl + Alt + P 快捷键：启动、激活或切换 Windows Terminal
+!x::
+{
+    winClass := "ahk_exe Typora.exe"
+    exePath := "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Typora\Typora.lnk"
+
+    ; 获取所有窗口的列表 (按 Z 顺序，最近激活的在前)
+    windowList := WinGetList(winClass)
+
+    ; 情况1: 没有窗口 -> 启动它
+    if windowList.Length = 0
+    {
+        Run exePath
+        return
+    }
+
+    ; 情况2: 窗口已在最前 -> 循环切换或最小化
+    if WinActive(winClass)
+    {
+        ; 如果只有一个窗口，则最小化它
+        if windowList.Length = 1
+        {
+            WinMinimize winClass
+            return
+        }
+        
+        ; 激活 Z 顺序中最后一个窗口，以实现循环切换
+        WinActivate "ahk_id " . windowList[windowList.Length]
+    }
+    ; 情况3: 有窗口, 但不在最前 -> 激活它
+    else
+    {
+        ; 激活最近使用的那个 (列表中的第一个)
+        WinActivate "ahk_id " . windowList[1]
+    }
+} 
 !F2::
 {
     winClass := "ahk_exe miro.exe"
@@ -38,7 +74,6 @@
         WinActivate "ahk_id " . windowList[1]
     }
 } 
-; 使用 Ctrl + Alt + P 快捷键：启动、激活或切换 Windows Terminal
 ^!p::
 {
     winClass := "ahk_exe WindowsTerminal.exe ahk_class CASCADIA_HOSTING_WINDOW_CLASS"
@@ -428,23 +463,39 @@ ActivateOrRun(winTitle, path)
 ; 3. ai_helper.py 文件需要和本脚本在同一个文件夹内。
 
 ; --- 快捷键定义 ---
-; 选中任意文本后，按 Ctrl+Alt+i 触发
+; 选中任意文本后，按 Alt+Z 触发
+; 智能逻辑: 1.如果窗口存在 -> 激活/最小化. 2.如果窗口不存在 -> 启动 (无论有无文本).
 !z::
 {
-    selectedText := GetSelectedText()
+    ; 定义窗口标题和类，用于识别
+    winTitle := "Python AI 助手 (终极版) ahk_class TkTopLevel"
     
-    if (Trim(selectedText) = "")
+    ; 1. 检查窗口是否已存在
+    if WinExist(winTitle)
     {
-        MsgBox "请先选择一段文本！"
-        return
+        ; 如果窗口是当前活动窗口，则最小化它
+        if WinActive(winTitle)
+        {
+            WinMinimize winTitle
+        }
+        ; 如果窗口存在但不是活动窗口，则激活它
+        else
+        {
+            WinActivate winTitle
+        }
     }
-    
-    ; 使用 WScript.Shell 来运行，确保窗口能被激活
-    pythonScriptPath := A_ScriptDir . "\ai_helper.py"
-    cmd := 'pythonw.exe "' . pythonScriptPath . '" "' . StrReplace(selectedText, '"', '""') . '"'
-    
-    Shell := ComObject("WScript.Shell")
-    Shell.Run(cmd, 1, false) ; 1 表示激活窗口, false 表示不等待脚本执行完毕
+    ; 2. 如果窗口不存在，则启动它
+    else
+    {
+        ; 尝试获取选中的文本 (即使为空也继续)
+        selectedText := GetSelectedText()
+        
+        ; 准备并运行 Python 脚本, 将选中的文本 (或空字符串) 作为参数传递
+        pythonScriptPath := A_ScriptDir . "\ai_helper.py"
+        cmd := 'pythonw.exe "' . pythonScriptPath . '" "' . StrReplace(selectedText, '"', '""') . '"'
+        
+        Run cmd
+    }
 }
 
 ; --- 核心功能函数 ---

@@ -285,7 +285,7 @@ class AiAssistantApp:
 
         answer_header_frame = ttk.Frame(answer_frame)
         answer_header_frame.pack(fill="x", pady=(0,5))
-        ttk.Label(answer_header_frame, text="AI 的回答 (Ctrl+A, F):").pack(side="left", anchor="w")
+        ttk.Label(answer_header_frame, text="AI 的回答 (Ctrl+A, F 全屏):").pack(side="left", anchor="w")
 
         action_buttons_frame = ttk.Frame(answer_header_frame)
         action_buttons_frame.pack(side="right")
@@ -539,7 +539,9 @@ class AiAssistantApp:
 
 # --- 4. 主程序入口 ---
 if __name__ == "__main__":
-    initial_prompt = sys.argv[1] if len(sys.argv) > 1 else "请在这里输入您的问题。"
+    # 如果AHK传来文本，就用它；否则，使用默认提示。
+    initial_prompt = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].strip() else ""
+    
     root = tk.Tk()
     app = AiAssistantApp(root, initial_prompt)
     root.mainloop() 
