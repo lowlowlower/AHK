@@ -1,8 +1,9 @@
 #Requires AutoHotkey v2.0
+#Warn VarUnset, Off
 
 
 ; 使用 Ctrl + Alt + m 快捷键：启动、激活或切换 Windows Terminal
-F2::
+!F2::
 {
     winClass := "ahk_exe miro.exe"
     exePath := "C:\Users\admin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Miro.lnk"
@@ -415,4 +416,50 @@ ActivateOrRun(winTitle, path)
     {
         Run path
     }
+}
+
+; ======================================================================
+; ================= AI 助手 (通过 Python 实现) =================
+; ======================================================================
+
+; --- 依赖说明 ---
+; 1. 请确保您已安装 Python: https://www.python.org/
+; 2. 请通过 pip 安装 requests 库: pip install requests
+; 3. ai_helper.py 文件需要和本脚本在同一个文件夹内。
+
+; --- 快捷键定义 ---
+; 选中任意文本后，按 Ctrl+Alt+i 触发
+!z::
+{
+    selectedText := GetSelectedText()
+    
+    if (Trim(selectedText) = "")
+    {
+        MsgBox "请先选择一段文本！"
+        return
+    }
+    
+    ; 使用 WScript.Shell 来运行，确保窗口能被激活
+    pythonScriptPath := A_ScriptDir . "\ai_helper.py"
+    cmd := 'pythonw.exe "' . pythonScriptPath . '" "' . StrReplace(selectedText, '"', '""') . '"'
+    
+    Shell := ComObject("WScript.Shell")
+    Shell.Run(cmd, 1, false) ; 1 表示激活窗口, false 表示不等待脚本执行完毕
+}
+
+; --- 核心功能函数 ---
+
+; 通过模拟 Ctrl+C 获取当前选中的文本
+GetSelectedText() {
+    oldClipboard := ClipboardAll() ; 使用 v2 推荐的函数，避免变量解析问题
+    A_Clipboard := "" ; 清空剪贴板以进行准确检测
+    SendInput "^c"
+    if !ClipWait(1) ; 等待剪贴板数据，超时1秒
+    {
+        A_Clipboard := oldClipboard
+        return ""
+    }
+    selectedText := A_Clipboard
+    A_Clipboard := oldClipboard ; 恢复原始剪贴板内容
+    return selectedText
 }
