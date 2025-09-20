@@ -8,6 +8,8 @@ import threading
 import queue
 import logging
 import re
+import os
+import configparser
 
 # --- 0. 日志设置 ---
 
@@ -21,6 +23,7 @@ class QueueHandler(logging.Handler):
         self.log_queue.put(self.format(record))
 
 # --- 1. 配置 (与 AHK 脚本中的保持一致) ---
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_helper_config.ini')
 DEEPSEEK_API_KEY = "sk-78a9fd015e054281a3eb0a0712d5e6d0"
 GEMINI_API_KEY = "AIzaSyDmfaMC3pHdY6BYCvL_1pWZF5NLLkh28QU"
 AI_MODELS = ["DeepSeek V3", "Gemini 2.5 Pro", "gemini-2.5-flash-lite-preview-06-17"]
@@ -191,11 +194,18 @@ class AiAssistantApp:
         # --- 布局 ---
         self.setup_assistant_tab(assistant_tab, initial_prompt)
         self.setup_log_tab(log_tab)
+        self.load_settings() # 在创建控件后加载设置
         self.setup_keyboard_shortcuts()
         
         # --- 启动 ---
         self.root.after(100, self.poll_log_queue)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # 拦截关闭事件
         logging.info("应用初始化完成。")
+
+    def on_closing(self):
+        """在窗口关闭前保存设置。"""
+        self.save_settings()
+        self.root.destroy()
 
     def initialize_fonts(self):
         # 定义动态字体对象
@@ -272,6 +282,7 @@ class AiAssistantApp:
         self.model_dropdown = ttk.Combobox(controls_frame, textvariable=self.model_var, values=AI_MODELS, state="readonly")
         self.model_dropdown.grid(row=0, column=3, sticky="ew")
         self.model_dropdown.current(0)
+        self.model_dropdown.bind("<<ComboboxSelected>>", self.on_model_select) # 保存模型选择
         
         # --- 操作区 ---
         action_frame = ttk.Frame(parent_tab)
@@ -320,6 +331,10 @@ class AiAssistantApp:
         self.log_text = scrolledtext.ScrolledText(parent_tab, height=15, wrap=tk.WORD, state='disabled')
         self.log_text.pack(fill="both", expand=True)
         
+    def on_model_select(self, event=None):
+        """当模型被选择时，保存设置。"""
+        self.save_settings()
+
     def change_log_level(self, event=None):
         level_name = self.log_level_var.get()
         level = getattr(logging, level_name.upper(), logging.INFO)
@@ -327,8 +342,10 @@ class AiAssistantApp:
         logging.info(f"日志级别已更改为: {level_name}")
 
     def setup_keyboard_shortcuts(self):
-        # 提交
-        self.prompt_text.bind("<Control-Return>", lambda e: self.submit_question())
+        # 提交 (全局)
+        self.root.bind("<Control-Return>", self.submit_question_event)
+        # 从剪贴板更新问题
+        self.root.bind("<Control-Shift-V>", self.update_prompt_from_clipboard)
         # 字体
         self.root.bind("<Control-plus>", lambda e: self.change_font_size(1))
         self.root.bind("<Control-equal>", lambda e: self.change_font_size(1)) # for keyboards without numpad
@@ -384,6 +401,12 @@ class AiAssistantApp:
         self.prompt_text.delete("1.0", tk.END)
         self.prompt_text.insert(tk.END, new_full_text)
         self.last_template_text = new_template_text
+        self.save_settings() # 应用模板后保存设置
+
+    def submit_question_event(self, event=None):
+        """快捷键事件处理器，阻止事件传播。"""
+        self.submit_question()
+        return "break"
 
     def submit_question(self):
         selected_model = self.model_var.get()
@@ -408,6 +431,29 @@ class AiAssistantApp:
             return
         thread.start()
         self.root.after(100, self.process_queue)
+
+    def update_prompt_from_clipboard(self, event=None):
+        """从剪贴板获取内容并更新到问题输入框。"""
+        try:
+            # 确保在执行任何操作前窗口处于激活状态
+            self.root.focus_force()
+            self.root.after(50, self._paste_from_clipboard) # 短暂延迟确保窗口已在前台
+        except Exception as e:
+            logging.error(f"激活窗口并准备粘贴时出错: {e}")
+
+    def _paste_from_clipboard(self):
+        try:
+            clipboard_content = self.root.clipboard_get()
+            self.prompt_text.delete("1.0", tk.END)
+            self.prompt_text.insert(tk.END, clipboard_content)
+            self.prompt_text.focus_set()
+            # 自动应用当前选中的模板
+            self.apply_template()
+            logging.info("已从剪贴板更新问题内容并重新应用模板。")
+        except tk.TclError:
+            logging.warning("从剪贴板获取内容失败，可能为空或非文本。")
+        except Exception as e:
+            logging.error(f"粘贴操作失败: {e}")
 
     def process_queue(self):
         try:
@@ -503,6 +549,53 @@ class AiAssistantApp:
             logging.info("退出全屏模式。")
             self.fullscreen_window.destroy()
             self.fullscreen_window = None
+
+    def save_settings(self):
+        """保存当前的模型和模板选择到配置文件。"""
+        logging.info("正在保存设置...")
+        config = configparser.ConfigParser()
+        config['Settings'] = {
+            'model': self.model_var.get(),
+            'template': self.template_var.get()
+        }
+        try:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as configfile:
+                config.write(configfile)
+            logging.info(f"设置已保存到 {CONFIG_FILE}")
+        except Exception as e:
+            logging.error(f"保存设置失败: {e}")
+
+    def load_settings(self):
+        """从配置文件加载模型和模板选择。"""
+        logging.info("正在加载设置...")
+        config = configparser.ConfigParser()
+        if not os.path.exists(CONFIG_FILE):
+            logging.warning(f"配置文件 {CONFIG_FILE} 不存在，使用默认设置。")
+            return
+
+        try:
+            config.read(CONFIG_FILE, encoding='utf-8')
+            if 'Settings' in config:
+                settings = config['Settings']
+                
+                # 加载模型
+                model = settings.get('model')
+                if model and model in self.model_dropdown['values']:
+                    self.model_var.set(model)
+                    logging.info(f"已加载模型: {model}")
+                else:
+                    logging.warning(f"配置文件中的模型 '{model}' 无效，使用默认值。")
+                
+                # 加载模板
+                template = settings.get('template')
+                if template and template in self.template_dropdown['values']:
+                    self.template_var.set(template)
+                    logging.info(f"已加载模板: {template}")
+                else:
+                    logging.warning(f"配置文件中的模板 '{template}' 无效，使用默认值。")
+        except Exception as e:
+            logging.error(f"加载配置文件失败: {e}")
+
 
     def copy_to_clipboard(self, event=None):
         try:
