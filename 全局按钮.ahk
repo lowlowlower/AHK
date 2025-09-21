@@ -489,67 +489,96 @@ ActivateOrRun(winTitle, path)
 
 ; --- 依赖说明 ---
 ; 1. 请确保您已安装 Python: https://www.python.org/
-; 2. 请通过 pip 安装 requests 库: pip install requests
-; 3. ai_helper.py 文件需要和本脚本在同一个文件夹内。
+; 2. ai_helper.py 和 prompts.json 文件需要和本脚本在同一个文件夹内。
 
 ; --- 快捷键定义 ---
 ; 选中任意文本后，按 Alt+Z 触发
-; 智能逻辑: 1.如果窗口存在 -> 激活/最小化. 2.如果窗口不存在 -> 启动 (无论有无文本).
 !z::
 {
-    ; 定义窗口标题和类，用于识别
-    winTitle := "Python AI 助手 (终极版) ahk_class TkTopLevel"
-    
-    ; 增强逻辑：总是先获取选中的文本
+    ; 智能逻辑: 通过是否选中文本来判断用户意图
+    ; 意图1: 如果选中文本 -> 发起新查询
+    ; 意图2: 如果未选中文本 -> 管理现有窗口
+
+    ToolTip("正在获取文本...")
     selectedText := GetSelectedText()
-    
-    ; 1. 检查窗口是否已存在
-    if WinExist(winTitle)
+    ToolTip()
+
+    winTitle := "Python AI 助手 (终极版) ahk_class TkTopLevel"
+
+    if (selectedText != "")
     {
-        ; 如果选中了新的文本，则激活并更新内容
-        if (selectedText != "")
+        ; --- 意图1: 发起新查询 ---
+        try
         {
-            WinActivate winTitle
-            A_Clipboard := selectedText  ; 将新文本放入剪贴板
-            Send "^+v"                  ; 发送 Ctrl+Shift+V 指令给 Python 应用更新内容
+            jsonPath := A_ScriptDir . "\prompts.json"
+            jsonContent := FileRead(jsonPath, "UTF-8")
+            
+            aiMenu := Menu()
+            
+            pos := 1
+            while RegExMatch(jsonContent, '(?<=")([^"]+)(?="\s*:)', &match, pos)
+            {
+                key := match[1]
+                if (key != "")
+                {
+                    aiMenu.Add(key, MenuClickHandler.Bind(key, selectedText))
+                }
+                pos := match.Pos + match.Len
+            }
         }
-        ; 如果没有选中文本，则执行原来的逻辑：激活或最小化
-        else
+        catch
         {
-            if WinActive(winTitle)
-            {
-                WinMinimize winTitle
-            }
-            else
-            {
-                WinActivate winTitle
-            }
+            MsgBox("读取或解析 prompts.json 失败！", "AI 助手错误", "Icon!")
+            return
         }
+        aiMenu.Show()
     }
-    ; 2. 如果窗口不存在，则启动它 (无论有无文本)
     else
     {
-        ; 准备并运行 Python 脚本, 将选中的文本 (或空字符串) 作为参数传递
-        pythonScriptPath := A_ScriptDir . "\ai_helper.py"
-        cmd := 'pythonw.exe "' . pythonScriptPath . '" "' . StrReplace(selectedText, '"', '""') . '"'
-        
-        Run cmd
+        ; --- 意图2: 管理现有窗口 ---
+        if WinExist(winTitle)
+        {
+            if WinActive(winTitle)
+                WinMinimize(winTitle)
+            else
+                WinActivate(winTitle)
+        }
+        ; 如果窗口不存在且没有选中文本，则不执行任何操作
     }
+}
+
+; --- 菜单项点击处理函数 ---
+MenuClickHandler(templateName, textToSend, *)
+{
+    ; 检查 Python 服务窗口是否已存在
+    winTitle := "Python AI 助手 (终极版) ahk_class TkTopLevel"
+    if WinExist(winTitle)
+    {
+        ; 如果存在，先关闭旧窗口，避免多开
+        WinClose(winTitle)
+        Sleep(200) ; 等待一小段时间确保窗口关闭
+    }
+
+    ; 运行 Python 脚本，传递文本和模板名
+    ; 使用 pythonw.exe 在后台无窗口启动
+    pythonExe := "pythonw.exe"
+    scriptPath := A_ScriptDir . '\ai_helper.py'
+    Run('"' pythonExe '" "' scriptPath '" "' textToSend '" "' templateName '"')
 }
 
 ; --- 核心功能函数 ---
 
 ; 通过模拟 Ctrl+C 获取当前选中的文本
 GetSelectedText() {
-    oldClipboard := ClipboardAll() ; 使用 v2 推荐的函数，避免变量解析问题
-    A_Clipboard := "" ; 清空剪贴板以进行准确检测
+    oldClipboard := ClipboardAll()
+    A_Clipboard := ""
     SendInput "^c"
-    if !ClipWait(1) ; 等待剪贴板数据，超时1秒
+    if !ClipWait(0.1) ; 优化：将等待时间缩短为 0.1 秒
     {
         A_Clipboard := oldClipboard
         return ""
     }
     selectedText := A_Clipboard
-    A_Clipboard := oldClipboard ; 恢复原始剪贴板内容
+    A_Clipboard := oldClipboard
     return selectedText
 }

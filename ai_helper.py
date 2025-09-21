@@ -28,15 +28,25 @@ DEEPSEEK_API_KEY = "sk-78a9fd015e054281a3eb0a0712d5e6d0"
 GEMINI_API_KEY = "AIzaSyDmfaMC3pHdY6BYCvL_1pWZF5NLLkh28QU"
 AI_MODELS = ["DeepSeek V3", "Gemini 2.5 Pro", "gemini-2.5-flash-lite-preview-06-17"]
 
-# --- 1.1 可编辑的快捷指令模板 ---
-# 在这里添加或修改你常用的指令, ""前是显示在菜单里的名字, ""后是实际加在问题前面的文字.
-PROMPT_TEMPLATES = {
-    "润色文本": "请帮我润色以下文本，使其更流畅、专业，并修正语法错误和不当之处：\n\n",
-    "翻译成英文": "请将以下文本翻译成地道的英文：\n\n",
-    "代码解释": "请逐行解释以下代码的功能和逻辑，并指出可优化的地方：\n\n",
-    "总结要点": "请将以下内容总结为几个关键要点，使用列表形式呈现：\n\n",
-    "查找语法错误": "请检查以下文本中是否存在语法错误，并直接给出修正后的版本：\n\n"
-}
+# --- 1.1 从 JSON 文件加载快捷指令模板 ---
+PROMPT_TEMPLATES = {} # 先初始化为空字典
+
+def load_prompt_templates():
+    """从 prompts.json 文件加载模板"""
+    global PROMPT_TEMPLATES
+    try:
+        # 使用 __file__ 获取当前脚本所在目录，确保路径正确
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(script_dir, 'prompts.json')
+        with open(json_path, 'r', encoding='utf-8') as f:
+            PROMPT_TEMPLATES = json.load(f)
+        logging.info(f"成功从 {json_path} 加载了 {len(PROMPT_TEMPLATES)} 个模板。")
+    except Exception as e:
+        logging.error(f"加载 prompts.json 失败: {e}")
+        # 提供默认模板以防文件丢失或格式错误
+        PROMPT_TEMPLATES = {
+            "错误": "无法加载模板文件，请检查 prompts.json。"
+        }
 
 # --- 2. API 调用函数 (全部改为非流式) ---
 
@@ -100,8 +110,8 @@ def call_gemini_non_stream(prompt, model_name, result_queue):
     """使用 requests 库常规调用 Gemini API, 并将结果放入队列"""
     logging.info(f"正在调用 Gemini API (非流式)，模型: {model_name}...")
     model_map = {
-        "Gemini 2.5 Pro": "gemini-1.5-pro-latest",
-        "gemini-2.5-flash-lite-preview-06-17": "gemini-1.5-flash-latest"
+        "Gemini 2.5 Pro": "gemini-2.5-pro",
+        "gemini-2.5-flash-lite-preview-06-17": "gemini-2.5-flash-lite-preview-06-17"
     }
     api_model_name = model_map.get(model_name)
     if not api_model_name:
@@ -162,11 +172,12 @@ def call_gemini_non_stream(prompt, model_name, result_queue):
 # --- 3. GUI 应用 ---
 
 class AiAssistantApp:
-    def __init__(self, root, initial_prompt):
+    def __init__(self, root, initial_prompt, initial_template_name):
         self.root = root
         self.last_template_text = ""
         self.current_font_size = 10
         self.fullscreen_window = None
+        self.is_focus_mode = False # 专注模式状态
         self.root.title("Python AI 助手 (终极版)")
         self.root.attributes('-topmost', True)
         self.root.geometry("800x800")
@@ -200,6 +211,13 @@ class AiAssistantApp:
         # --- 启动 ---
         self.root.after(100, self.poll_log_queue)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # 拦截关闭事件
+        
+        # 处理来自 AHK 的模板参数
+        if initial_template_name and initial_template_name in PROMPT_TEMPLATES:
+            self.template_var.set(initial_template_name)
+            self.apply_template() # 自动应用模板
+            logging.info(f"已根据启动参数自动应用模板: {initial_template_name}")
+
         logging.info("应用初始化完成。")
 
     def on_closing(self):
@@ -255,52 +273,60 @@ class AiAssistantApp:
                 self.render_markdown(self.fullscreen_text)
 
     def setup_assistant_tab(self, parent_tab, initial_prompt):
-        # --- 提问区 ---
-        question_frame = ttk.Frame(parent_tab)
-        question_frame.pack(fill="x", pady=(0, 5))
-        ttk.Label(question_frame, text="您的问题 (Ctrl+P):").pack(anchor="w")
-        self.prompt_text = scrolledtext.ScrolledText(question_frame, height=8, wrap=tk.WORD)
+        # 创建一个总的顶部容器
+        self.top_panel = ttk.Frame(parent_tab)
+        self.top_panel.pack(fill="x", side="top")
+
+        # --- 提问区 (放入 top_panel) ---
+        self.question_frame = ttk.Frame(self.top_panel)
+        self.question_frame.pack(fill="x", pady=(0, 5))
+        ttk.Label(self.question_frame, text="您的问题 (Ctrl+P):").pack(anchor="w")
+        self.prompt_text = scrolledtext.ScrolledText(self.question_frame, height=8, wrap=tk.WORD)
         self.prompt_text.insert(tk.END, initial_prompt)
         self.prompt_text.pack(fill="x", expand=True, pady=(5,0))
 
-        # --- 模板与模型区 ---
-        controls_frame = ttk.Frame(parent_tab)
-        controls_frame.pack(fill="x", pady=5)
-        controls_frame.columnconfigure(1, weight=1)
-        controls_frame.columnconfigure(3, weight=1)
+        # --- 模板与模型区 (放入 top_panel) ---
+        self.controls_frame = ttk.Frame(self.top_panel)
+        self.controls_frame.pack(fill="x", pady=5)
+        self.controls_frame.columnconfigure(1, weight=1)
+        self.controls_frame.columnconfigure(3, weight=1)
 
-        ttk.Label(controls_frame, text="模板 (Ctrl+T):").grid(row=0, column=0, sticky="w", padx=(0,5))
+        ttk.Label(self.controls_frame, text="模板 (Ctrl+T):").grid(row=0, column=0, sticky="w", padx=(0,5))
         self.template_var = tk.StringVar()
         template_names = ["-- 无模板 --"] + list(PROMPT_TEMPLATES.keys())
-        self.template_dropdown = ttk.Combobox(controls_frame, textvariable=self.template_var, values=template_names, state="readonly")
+        self.template_dropdown = ttk.Combobox(self.controls_frame, textvariable=self.template_var, values=template_names, state="readonly")
         self.template_dropdown.grid(row=0, column=1, sticky="ew")
         self.template_dropdown.current(0)
         self.template_dropdown.bind("<<ComboboxSelected>>", self.apply_template)
 
-        ttk.Label(controls_frame, text="模型 (Ctrl+M):").grid(row=0, column=2, sticky="w", padx=(10,5))
+        ttk.Label(self.controls_frame, text="模型 (Ctrl+M):").grid(row=0, column=2, sticky="w", padx=(10,5))
         self.model_var = tk.StringVar()
-        self.model_dropdown = ttk.Combobox(controls_frame, textvariable=self.model_var, values=AI_MODELS, state="readonly")
+        self.model_dropdown = ttk.Combobox(self.controls_frame, textvariable=self.model_var, values=AI_MODELS, state="readonly")
         self.model_dropdown.grid(row=0, column=3, sticky="ew")
         self.model_dropdown.current(0)
         self.model_dropdown.bind("<<ComboboxSelected>>", self.on_model_select) # 保存模型选择
         
-        # --- 操作区 ---
-        action_frame = ttk.Frame(parent_tab)
-        action_frame.pack(fill="x", pady=5)
-        self.submit_button = ttk.Button(action_frame, text="提问 (Ctrl+Enter)", command=self.submit_question)
+        # --- 操作区 (放入 top_panel) ---
+        self.action_frame = ttk.Frame(self.top_panel)
+        self.action_frame.pack(fill="x", pady=5)
+        self.submit_button = ttk.Button(self.action_frame, text="提问 (Ctrl+Enter)", command=self.submit_question)
         self.submit_button.pack(side="right")
 
-        # --- 回答区 ---
-        answer_frame = ttk.Frame(parent_tab)
-        answer_frame.pack(fill="both", expand=True, pady=(5,0))
+        # --- 回答区 (保持在 parent_tab) ---
+        self.answer_frame = ttk.Frame(parent_tab)
+        self.answer_frame.pack(fill="both", expand=True, pady=(5,0))
 
-        answer_header_frame = ttk.Frame(answer_frame)
+        answer_header_frame = ttk.Frame(self.answer_frame)
         answer_header_frame.pack(fill="x", pady=(0,5))
         ttk.Label(answer_header_frame, text="AI 的回答 (Ctrl+A, F 全屏):").pack(side="left", anchor="w")
 
         action_buttons_frame = ttk.Frame(answer_header_frame)
         action_buttons_frame.pack(side="right")
         
+        # 新增专注模式按钮
+        self.focus_button = ttk.Button(action_buttons_frame, text="专注 (Z)", command=self.toggle_focus_mode)
+        self.focus_button.pack(side="left", padx=(0, 10))
+
         font_minus_button = ttk.Button(action_buttons_frame, text="A-", command=lambda: self.change_font_size(-1), width=4)
         font_minus_button.pack(side="left", padx=(0, 5))
         font_plus_button = ttk.Button(action_buttons_frame, text="A+", command=lambda: self.change_font_size(1), width=4)
@@ -311,7 +337,8 @@ class AiAssistantApp:
         self.save_button = ttk.Button(action_buttons_frame, text="保存 (Ctrl+S)", command=self.save_to_file)
         self.save_button.pack(side="left")
 
-        self.answer_text = scrolledtext.ScrolledText(answer_frame, height=15, wrap=tk.WORD)
+        self.answer_text = scrolledtext.ScrolledText(self.answer_frame, height=15, wrap=tk.WORD)
+        self.answer_text.config(bg="#FCFCF5") # 为回答区设置一个柔和的背景色
         self.answer_text.pack(fill="both", expand=True)
         self.answer_text.tag_configure("current_line", background="#e8f2ff")
         
@@ -367,11 +394,26 @@ class AiAssistantApp:
         # 全屏
         self.root.bind("<F>", self.toggle_fullscreen_answer)
         self.root.bind("<Escape>", self.exit_fullscreen)
+        # 专注模式
+        self.root.bind("<z>", self.toggle_focus_mode)
+        self.root.bind("<Z>", self.toggle_focus_mode) # 支持 Shift+Z
         
     def highlight_current_line(self, event=None):
         self.answer_text.tag_remove("current_line", "1.0", tk.END)
         cursor_pos = self.answer_text.index(tk.INSERT)
         self.answer_text.tag_add("current_line", f"{cursor_pos} linestart", f"{cursor_pos} lineend+1c")
+
+    def toggle_focus_mode(self, event=None):
+        """切换专注模式，隐藏或显示顶部面板。"""
+        self.is_focus_mode = not self.is_focus_mode
+        if self.is_focus_mode:
+            self.top_panel.pack_forget()
+            self.focus_button.config(text="展开 (Z)")
+            logging.info("进入专注模式。")
+        else:
+            self.top_panel.pack(fill="x", side="top", before=self.answer_frame)
+            self.focus_button.config(text="专注 (Z)")
+            logging.info("退出专注模式。")
 
     def poll_log_queue(self):
         while True:
@@ -501,8 +543,9 @@ class AiAssistantApp:
                 text_widget.tag_add(f"h{level}", start_pos, f"1.0+{match.end()}c")
                 text_widget.tag_add("hidden", start_pos, f"1.0+{match.start(1)}c")
 
-        # 3. 粗体
-        for match in re.finditer(r"\*\*(.*?)\*\*", text_content):
+        # 3. 粗体 (修正正则表达式)
+        # 使用 `(.+?)` 确保匹配至少一个字符，并且是非贪婪模式，能正确处理末尾的标点
+        for match in re.finditer(r"\*\*(.+?)\*\*", text_content):
             start_pos = f"1.0+{match.start()}c"
             if "code_block" in text_widget.tag_names(start_pos): continue
             text_widget.tag_add("bold", f"1.0+{match.start(1)}c", f"1.0+{match.end(1)}c")
@@ -632,9 +675,14 @@ class AiAssistantApp:
 
 # --- 4. 主程序入口 ---
 if __name__ == "__main__":
+    # 在程序启动时加载模板
+    load_prompt_templates()
+
     # 如果AHK传来文本，就用它；否则，使用默认提示。
     initial_prompt = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].strip() else ""
+    # 接收 AHK 传来的第二个参数作为模板名称
+    initial_template_name = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2].strip() else ""
     
     root = tk.Tk()
-    app = AiAssistantApp(root, initial_prompt)
+    app = AiAssistantApp(root, initial_prompt, initial_template_name)
     root.mainloop() 
