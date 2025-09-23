@@ -566,6 +566,45 @@ MenuClickHandler(templateName, textToSend, *)
     Run('"' pythonExe '" "' scriptPath '" "' textToSend '" "' templateName '"')
 }
 
+; ======================================================================
+; =================== 文本转语音 (TTS via Python) ====================
+; ======================================================================
+
+; --- 依赖说明 ---
+; 1. 需要 Python 环境
+; 2. 需要安装 gTTS 和 playsound 库: pip install gTTS playsound==1.2.2
+; 3. tts_helper.py 文件需要和本脚本在同一个文件夹内。
+
+; 使用 Alt + T 朗读选中的文本 (调用 Google TTS)
+!t::
+{
+    static tts_pid := 0 ; 用于存储朗读进程的 PID
+
+    ; --- 终止上一个朗读进程 (如果存在) ---
+    if (tts_pid != 0)
+    {
+        try ProcessClose(tts_pid)
+        catch
+        {
+            ; 进程可能已经结束，忽略错误
+        }
+    }
+
+    selectedText := GetSelectedText()
+    if (selectedText = "")
+    {
+        tts_pid := 0 ; 确保重置 PID
+        return
+    }
+    
+    ; --- 调用 Python 脚本进行朗读 ---
+    pythonExe := "pythonw.exe" ; 使用 pythonw.exe 在后台无窗口运行
+    scriptPath := A_ScriptDir . '\tts_helper.py'
+    
+    ; 运行脚本并捕获其 PID，以便下次可以中断它
+    Run('"' pythonExe '" "' scriptPath '" "' selectedText '"',, "Hide", &tts_pid)
+}
+
 ; --- 核心功能函数 ---
 
 ; 通过模拟 Ctrl+C 获取当前选中的文本
