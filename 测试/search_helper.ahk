@@ -3,11 +3,11 @@
 #SingleInstance force
 
 ; 设置 Python 解释器的路径和脚本的路径
-python_path := "python.exe" ; 确保 python 在你的系统路径中，或者提供完整路径
-script_path := A_ScriptDir . "\search_handler.py"
 
 !f1::
 {
+    python_path := "python.exe" ; 确保 python 在你的系统路径中，或者提供完整路径
+    script_path := A_ScriptDir . "\search_handler.py"
     ; 保存当前剪贴板的文本内容
     ClipboardOld := A_Clipboard
     A_Clipboard := "" ; 清空剪贴板以确保能获取到选中的文本
