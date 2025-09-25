@@ -1,7 +1,0 @@
-{
-    "g": "https://www.google.com/search?q={query}",
-    "gemini": "https://gemini.google.com/app?q={query}",
-    "xy": "https://s.2.taobao.com/list/list.htm?q={query}",
-    "xhs": "https://www.xiaohongshu.com/search_result/?keyword={query}",
-    "b": "https://search.bilibili.com/all?keyword={query}"
-}

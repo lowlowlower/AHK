@@ -25,7 +25,7 @@ class QueueHandler(logging.Handler):
 # --- 1. 配置 (与 AHK 脚本中的保持一致) ---
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_helper_config.ini')
 DEEPSEEK_API_KEY = "sk-78a9fd015e054281a3eb0a0712d5e6d0"
-GEMINI_API_KEY = "AIzaSyDmfaMC3pHdY6BYCvL_1pWZF5NLLkh28QU"
+GEMINI_API_KEY = "AIzaSyApuy_ax9jhGXpUdlgI6w_0H5aZ7XiY9vU"
 AI_MODELS = ["DeepSeek V3", "Gemini 2.5 Pro", "gemini-2.5-flash-lite-preview-06-17"]
 
 # --- 1.1 从 JSON 文件加载快捷指令模板 ---

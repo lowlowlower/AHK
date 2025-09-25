@@ -1,6 +1,49 @@
 #Requires AutoHotkey v2.0
 #Warn VarUnset, Off
 
+; ======================================================================
+; ========================= 快捷键总览 (Hotkey Summary) ==========================
+; ======================================================================
+;
+; --- 系统 & 应用快捷键 ---
+; !x               : 启动或切换 Typora
+; !c               : 启动或切换 workflowy
+; !F2              : 启动或切换 Miro
+; ^!p              : 启动或切换 Windows Terminal
+; ^!c              : 启动或切换 Chrome
+; ^!q              : 启动或切换 "质监站" 文件夹
+; ^!x              : 启动或切换 文件资源管理器
+; ^!e              : 启动或切换 Cursor
+; ^!1              : 启动或切换 Word
+; !a               : 启动或切换 MuseScore
+; ^!r              : 启动或切换 scrcpy 手机投屏
+; !y              : 启动或切换 AHK Window Spy
+;
+; --- AI & 辅助工具 ---
+; !f1              : 选中文字后，弹出自定义搜索引擎
+; !z               : (选中文字) 弹出 AI 助手菜单 / (未选) 切换 AI 助手窗口
+; !t               : 朗读选中的文本 (TTS)
+;
+; --- 网页 & 书签 ---
+; #!q / #!w / #!e  : 在 Chrome 中打开 Bilibili 收藏夹
+;
+; --- 决策大师 ---
+; ^!d              : 呼出 "决策大师" 菜单
+;
+; --- 键盘音乐 ---
+; F8               : 切换音色 (Sine, Square, Sawtooth, Triangle)
+; F9               : 显示键盘音名映射图
+; F10              : 开启/关闭键盘音乐
+; +F10             : 开启/关闭音名显示
+;
+; 符号说明:
+; ! : Alt
+; ^ : Ctrl
+; + : Shift
+; # : Win
+;
+; ======================================================================
+
 !f1::
 {
     python_path := "python.exe" ; 确保 python 在你的系统路径中，或者提供完整路径
@@ -34,6 +77,41 @@
 
 ; 使用 Ctrl + Alt + m 快捷键：启动、激活或切换 Windows Terminal
 ; 使用 Ctrl + Alt + P 快捷键：启动、激活或切换 Windows Terminal
+!c::
+{
+    winClass := "ahk_exe workflowy.exe"
+    exePath := "C:\Users\admin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\WorkFlowy.lnk"
+
+    ; 获取所有窗口的列表 (按 Z 顺序，最近激活的在前)
+    windowList := WinGetList(winClass)
+
+    ; 情况1: 没有窗口 -> 启动它
+    if windowList.Length = 0
+    {
+        Run exePath
+        return
+    }
+
+    ; 情况2: 窗口已在最前 -> 循环切换或最小化
+    if WinActive(winClass)
+    {
+        ; 如果只有一个窗口，则最小化它
+        if windowList.Length = 1
+        {
+            WinMinimize winClass
+            return
+        }
+        
+        ; 激活 Z 顺序中最后一个窗口，以实现循环切换
+        WinActivate "ahk_id " . windowList[windowList.Length]
+    }
+    ; 情况3: 有窗口, 但不在最前 -> 激活它
+    else
+    {
+        ; 激活最近使用的那个 (列表中的第一个)
+        WinActivate "ahk_id " . windowList[1]
+    }
+} 
 !x::
 {
     winClass := "ahk_exe Typora.exe"
@@ -378,7 +456,7 @@
 }
 
 ; 使用 Ctrl + Alt + Y 快捷键：启动、激活或最小化 AHK Window Spy
-^!y::
+!y::
 {
     winTitle := "Window Spy ahk_exe AutoHotkeyUX.exe"
     spyPath := '"C:\Program Files\AutoHotkey\UX\AutoHotkeyUX.exe" "C:\Program Files\AutoHotkey\UX\WindowSpy.ahk"'
@@ -639,6 +717,8 @@ global keyFrequencies := ""
 global keyNoteNames := ""
 global soundEngine := ""         ; <--- 新增：用于存储声音引擎进程对象
 global keysDown := Map()         ; <--- 新增：用于跟踪按键状态，防止键重复
+global timbres := ["Sine", "Square", "Sawtooth", "Triangle"] ; <--- 新增：音色列表
+global currentTimbreIndex := 1                             ; <--- 新增：当前音色索引
 
 ; --- 初始化 & 自动执行段 ---
 #Requires AutoHotkey v2.0
@@ -687,6 +767,26 @@ InitializeKeyboardMusic()
 }
 
 ; --- 功能开关 ---
+
+; F8: 切换音色
+F8::
+{
+    global soundEngine, timbres, currentTimbreIndex
+
+    ; 循环到下一个音色
+    currentTimbreIndex++
+    if (currentTimbreIndex > timbres.Length)
+        currentTimbreIndex := 1
+    
+    newTimbre := timbres[currentTimbreIndex]
+
+    ; 发送 TIMBRE 命令到声音引擎
+    try soundEngine.StdIn.WriteLine("TIMBRE " . newTimbre)
+    
+    ; 显示提示
+    ToolTip("音色: " . newTimbre)
+    SetTimer(RemoveMusicToolTip, -1000)
+}
 
 ; F10: 切换键盘音乐
 F10::
