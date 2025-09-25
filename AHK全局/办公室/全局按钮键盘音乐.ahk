@@ -631,16 +631,33 @@ GetSelectedText() {
 ; 2. 按 Shift+F10 开启或关闭音名显示。
 ; 3. 按 F9 显示键盘与音名的映射关系。
 ; 4. 开启后，按键时长决定音符时长。
-; 5. keyboard_music_helper.py 文件需要和本脚本在同一个文件夹内。
+; 5. keyboard_music_engine.py 文件需要和本脚本在同一个文件夹内。
 
 global isKeyboardMusicEnabled := false
-global showNoteNamesEnabled := true  ; <--- 新增：控制音名显示的开关
+global showNoteNamesEnabled := true
 global keyFrequencies := ""
 global keyNoteNames := ""
-global playingNotes := Map()       ; <--- 新增：用于跟踪正在播放的音符进程
+global soundEngine := ""         ; <--- 新增：用于存储声音引擎进程对象
+global keysDown := Map()         ; <--- 新增：用于跟踪按键状态，防止键重复
 
-; --- 初始化 ---
-; 在脚本启动时自动配置频率映射和热键
+; --- 初始化 & 自动执行段 ---
+#Requires AutoHotkey v2.0
+#SingleInstance Force
+
+; 在脚本启动时启动声音引擎
+global soundEngine := ComObject("WScript.Shell").Exec('pythonw.exe "' A_ScriptDir '\keyboard_music_engine.py"')
+
+OnExit(Cleanup) ; 注册退出函数
+
+Cleanup(*)
+{
+    ; 确保在脚本退出时关闭声音引擎进程
+    if IsObject(soundEngine)
+    {
+        try soundEngine.Terminate()
+    }
+}
+
 InitializeKeyboardMusic()
 
 InitializeKeyboardMusic()
@@ -664,8 +681,7 @@ InitializeKeyboardMusic()
     ; 动态为每个字母创建按下和弹起的热键
     for key in keyFrequencies
     {
-        ; 使用 "~" 前缀，这样按键原有的输入功能不会被屏蔽
-        Hotkey("~" . key, KeyDownSound)
+        Hotkey("~" . key, KeyDownSound, "P1") ; 使用 "P1" 提高优先级
         Hotkey("~" . key . " Up", KeyUpSound)
     }
 }
@@ -733,52 +749,45 @@ RemoveMusicToolTip()
 ; 当按键被按下时调用
 KeyDownSound(*)
 {
-    global isKeyboardMusicEnabled, showNoteNamesEnabled, keyFrequencies, keyNoteNames, playingNotes
+    global isKeyboardMusicEnabled, showNoteNamesEnabled, keyNoteNames, soundEngine, keysDown
     if !isKeyboardMusicEnabled
         return
 
     key := SubStr(A_ThisHotkey, 2)
     
-    ; 如果这个音符已经在播放 (处理按键重复的情况)，则不做任何事
-    if playingNotes.Has(key)
+    ; 防止操作系统按键重复触发
+    if keysDown.Has(key)
         return
+    keysDown.Set(key, true)
 
-    if keyFrequencies.Has(key)
+    ; 发送 "ADD" 命令到声音引擎
+    soundEngine.StdIn.WriteLine("ADD " . key)
+
+    ; 根据开关决定是否显示音名
+    if (showNoteNamesEnabled)
     {
-        frequency := keyFrequencies[key]
         noteName := keyNoteNames.Get(key, "")
-
-        ; 根据开关决定是否显示音名
-        if (showNoteNamesEnabled && noteName != "")
+        if (noteName != "")
         {
             xPos := A_ScreenWidth // 2 - 50
             yPos := A_ScreenHeight - 80
             ToolTip(noteName, xPos, yPos)
             SetTimer(RemoveMusicToolTip, -500)
         }
-        
-        pythonExe := "pythonw.exe"
-        scriptPath := A_ScriptDir . '\keyboard_music_helper.py'
-        
-        ; 运行脚本，并将其 PID 存入 Map
-        Run('"' pythonExe '" "' scriptPath '" "' frequency '"',, "Hide", &pid)
-        playingNotes.Set(key, pid)
     }
 }
 
 ; 当按键被松开时调用
 KeyUpSound(*)
 {
-    global playingNotes
-    key := SubStr(A_ThisHotkey, 2, -3) ; 从 "~q Up" 中提取 "q"
+    global soundEngine, keysDown
+    key := SubStr(A_ThisHotkey, 2, -3)
     
-    ; 检查是否有正在播放的音符进程
-    if playingNotes.Has(key)
-    {
-        pid := playingNotes.Get(key)
-        try ProcessClose(pid) ; 尝试关闭进程
-        
-        ; 从 Map 中移除，以便下次可以再次触发
-        playingNotes.Delete(key)
-    }
+    ; 必须先检查 key 是否存在，以防按键在音乐关闭时被按下
+    if !keysDown.Has(key)
+        return
+
+    ; 发送 "REMOVE" 命令到声音引擎
+    soundEngine.StdIn.WriteLine("REMOVE " . key)
+    keysDown.Delete(key)
 }
