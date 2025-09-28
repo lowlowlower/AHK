@@ -1,0 +1,22 @@
+{
+    "g": "https://www.google.com/search?q={query}",
+    "gemini": "https://gemini.google.com/app?q={query}",
+    "xy": "https://s.2.taobao.com/list/list.htm?q={query}",
+    "xhs": "https://www.xiaohongshu.com/search_result/?keyword={query}",
+    "b": "https://search.bilibili.com/all?keyword={query}",
+    "r": "https://www.reddit.com/search/?q={query}",
+    "y": "https://www.youtube.com/results?search_query={query}",
+    "git": "https://github.com/search?q={query}",
+    "w": "https://en.wikipedia.org/wiki/Special:Search?search={query}",
+    "ddg": "https://duckduckgo.com/?q={query}",
+    "so": "https://stackoverflow.com/search?q={query}",
+    "amazon": "https://www.amazon.com/s?k={query}",
+    "zhihu": "https://www.zhihu.com/search?type=content&q={query}",
+    "douban": "https://www.douban.com/search?q={query}",
+    "px": "https://www.perplexity.ai/search?q={query}",
+    "ph": "https://www.phind.com/search?q={query}",
+    "hf": "https://huggingface.co/models?search={query}",
+    "gs": "https://scholar.google.com/scholar?q={query}",
+    "wa": "https://www.wolframalpha.com/input?i={query}",
+    "gai": "https://www.google.com/search?q={query}&udm=50"
+}
