@@ -213,7 +213,7 @@
         WinActivate "ahk_id " . windowList[1]
     }
 } 
-^!p::
+!q::
 {
     winClass := "ahk_exe WindowsTerminal.exe ahk_class CASCADIA_HOSTING_WINDOW_CLASS"
     exePath := "wt.exe" ; 使用 wt.exe 命令确保正确启动 Windows Terminal
