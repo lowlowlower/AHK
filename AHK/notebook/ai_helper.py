@@ -26,7 +26,7 @@ class QueueHandler(logging.Handler):
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_helper_config.ini')
 DEEPSEEK_API_KEY = "sk-78a9fd015e054281a3eb0a0712d5e6d0"
 GEMINI_API_KEY = "AIzaSyDmfaMC3pHdY6BYCvL_1pWZF5NLLkh28QU"
-AI_MODELS = ["DeepSeek V3", "Gemini 2.5 Pro", "gemini-2.5-flash-lite-preview-06-17"]
+AI_MODELS = ["DeepSeek V3", "Gemini 2.5 Pro", "gemini-flash-latest"]
 
 # --- 1.1 从 JSON 文件加载快捷指令模板 ---
 PROMPT_TEMPLATES = {} # 先初始化为空字典
@@ -111,7 +111,7 @@ def call_gemini_non_stream(prompt, model_name, result_queue):
     logging.info(f"正在调用 Gemini API (非流式)，模型: {model_name}...")
     model_map = {
         "Gemini 2.5 Pro": "gemini-2.5-pro",
-        "gemini-2.5-flash-lite-preview-06-17": "gemini-2.5-flash-lite-preview-06-17"
+        "gemini-flash-latest": "gemini-flash-latest"
     }
     api_model_name = model_map.get(model_name)
     if not api_model_name:
