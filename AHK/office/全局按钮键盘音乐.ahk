@@ -108,7 +108,7 @@
 
 ; 使用 Ctrl + Alt + m 快捷键：启动、激活或切换 Windows Terminal
 ; 使用 Ctrl + Alt + P 快捷键：启动、激活或切换 Windows Terminal
-!c::
+#!c::
 {
     winClass := "ahk_exe workflowy.exe"
     exePath := "C:\Users\admin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\WorkFlowy.lnk"
@@ -213,7 +213,7 @@
         WinActivate "ahk_id " . windowList[1]
     }
 } 
-^!p::
+!q::
 {
     winClass := "ahk_exe WindowsTerminal.exe ahk_class CASCADIA_HOSTING_WINDOW_CLASS"
     exePath := "wt.exe" ; 使用 wt.exe 命令确保正确启动 Windows Terminal

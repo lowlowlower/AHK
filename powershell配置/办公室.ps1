@@ -1,4 +1,4 @@
-
+Import-Module PSFzf
 function OpenGeminiProfile4 {
     start-process -FilePath "chrome.exe" -ArgumentList '--profile-directory="Profile 4"', "https://gemini.google.com/app"
 }
@@ -11,8 +11,8 @@ function googledriver {
 function supabase1 {
     start-process -FilePath "chrome.exe" -ArgumentList '--profile-directory="Default"', "https://supabase.com/dashboard/project/urfibhtfqgffpanpsjds/editor/86162?schema=public"
 }
-function bilibili {
-    start-process -FilePath "chrome.exe" -ArgumentList '--profile-directory="Default"', "https://www.bilibili.com/"
+function bi {
+    start-process -FilePath "chrome.exe" -ArgumentList '--profile-directory="Profile 4"', "https://space.bilibili.com/675652672/favlist?fid=1051841572&ftype=create"
 }
 Set-Location -Path "D:\github"
 Set-Alias -Name ty -Value "C:\Program Files\Typora\Typora.exe"
@@ -21,7 +21,8 @@ Set-Alias -Name ch -Value "C:\Program Files\Google\Chrome\Application\chrome.exe
 Set-Alias -Name chg -Value OpenGeminiProfile4
 Set-Alias -Name ghs -Value githubStars
 Set-Alias -Name chd -Value googledriver
-Set-Alias -Name bl -Value bilibili
 Set-Alias -Name sup -Value supabase1
+Set-Alias -Name bif -Value bi
+
 
 
